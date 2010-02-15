@@ -1,0 +1,2 @@
+#! /bin/sh
+ps -e -ouser,pid,start_time,stat,rss,vsize,pcpu,pmem,cmd --forest

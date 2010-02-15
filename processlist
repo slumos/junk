@@ -1,0 +1,3 @@
+echo "$(hostname): $(uptime)"
+echo "Id      User    Host    db      Command Time    State   Info"
+mysql -uroot -e 'show full processlist' | sed 1d | grep -v Sleep | sort -rn -t$'\t' -k6

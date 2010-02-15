@@ -1,0 +1,17 @@
+#! /usr/bin/env ruby
+
+USAGE=<<EOQ
+usage: #{File.basename $0} hostname
+EOQ
+
+hostname=ARGV.shift
+if hostname.nil? then
+  puts USAGE
+  exit 1
+end
+
+(ip,rest) = %x(getent hosts #{hostname}).split(/\s+/, 2)
+transform_string = "puts 'server_id = ' + '#{ip}'.split('.').map{|x| x.to_i}.reverse.pack('C4').unpack('I').to_s"
+
+puts "# #{transform_string}"
+eval transform_string

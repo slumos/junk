@@ -1,0 +1,27 @@
+#! /bin/zsh
+
+interval=60
+
+print "N     Time                 L1 -- ${interval}s -- L2 Delta     Rate       ETA"
+echo  "----  -------------------  --------------- --------- ---------- -----------"
+
+while :; do
+  echo 'show slave status\G'
+  sleep $interval
+  echo 'show slave status\G'
+done \
+| mysql -uroot -n \
+| awk '/Seconds/ {print $2; fflush();}' \
+| {
+    n=0
+    while read a; read b; do
+      float t avg 
+      integer d eta
+      ((n+=1))
+      ((d=(b-a)))
+      ((t+=-d))
+      ((avg = -(t/n)/interval))
+      ((eta = (-b/avg)))
+      printf "%-5d %-20s %-7d %7d  %7.2fs %7.2fs/s %10ds\n" $n $(date +%FT%T) $a $b $d $avg $eta
+    done
+  }

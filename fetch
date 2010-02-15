@@ -1,0 +1,35 @@
+#! /bin/sh
+# fetch - figure out how to get some url and do it
+
+find_prog () {
+  prog=$1
+  ret=1
+  OIFS=$IFS
+  IFS=:
+  for d in $PATH; do
+    if test -f $d/$prog && test -x $d/$prog; then
+      ret=0
+      break
+    fi
+  done
+  IFS=$OIFS
+  return $ret
+}
+
+if [ "$#" -ne 1 -o "$1" = "-h" ]; then
+  name="`basename $0`"
+  echo "usage: $name url" 1>&2
+  exit 127
+fi
+
+url="$1"
+
+if find_prog curl; then
+  curl -OL "$url"
+elif test -f /usr/pkg/bin/ftp; then
+  ftp "$url"
+elif find_prog wget; then
+  wget "$url"
+elif find_prog lwp-download; then
+  lwp-download "$url"
+fi

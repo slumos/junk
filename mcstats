@@ -1,0 +1,21 @@
+#! /bin/zsh
+
+usage () {
+  echo "usage $0:t [-h|--help] host [port]"
+}
+
+while getopts "h" opt; do
+  case "$opt" in
+    h|help|\?) usage; exit 0 ;;
+  esac
+done
+
+if [ $# -ne 1 -a $# -ne 2 ]; then
+  usage
+  exit 127
+fi
+
+host=$1
+port=${2:-11211}
+
+echo -ne 'stats\r\n' | nc $host $port

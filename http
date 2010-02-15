@@ -1,0 +1,2 @@
+#! /bin/zsh
+socat READLINE,history=$HOME/.http_history TCP:$1:80,crnl

@@ -1,0 +1,2 @@
+#! /bin/sh
+uptime; echo; ps -e -opid,start_time,stat,vsize,pcpu,cmd | sed -n -e /sed/d -e '/mongrel_rails \[/p' -e /PID/p | sort -k7; echo; echo Running mongrels: $(ps auxww | grep 'mongrel_rails \[' | grep -v grep | wc -l)
