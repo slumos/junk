@@ -1,0 +1,98 @@
+#! /usr/bin/env zsh
+
+# These get configured once
+target_dir=/home/slumos
+
+date_fmt='%Y-%m-%dT%H:%M:%S'
+log_file="${target_dir}/.last_ss_rsync"
+strongspace_host='slumos.strongspace.com'
+
+rsync_preserve_flags='-lpt'
+rsync_file_flags="-z -r --delete --delete-excluded"
+# trying to support both .rsync-filter and older exclude method
+rsync_skip_flags="-F --exclude=${target_dir}/.rsync-exclude"
+rsync_log_flags="-vv"
+
+# this is what i want, but scponly doesn't allow %
+#rsync_log_flags="-v --out-format=%o:%f%L:%i"
+
+# Get these automatically someday
+## ...from SS-RSYNC-ID: in log file
+last_id=2008-04-01T16:54:39
+
+## ...maybe something like $(hostname)${target_dir//\//::}
+strongspace_dir=rsync/bitty-home
+
+# Step 1: Create or find a snapshot
+
+## Figure out the filesystem type
+if (zfs list "$target_dir") >& /dev/null; then
+  fstype=zfs
+  target_dataset="$(zfs list -Honame "$target_dir")"
+  target_mountpoint="$(zfs list -Homountpoint "$target_dir")"
+elif [[ -d "$target_dir/.snapshot/nightly.0" ]]; then
+  fstype=netapp
+fi
+
+new_id="$(print -P "%D{${date_fmt}}")"
+
+case "$fstype" in
+  zfs)
+    # zfs snapshots rule.  we just create one and go.
+    pfexec zfs snapshot "${target_dataset}@${new_id}"
+    target_snap="${target_mountpoint}/.zfs/snapshot/${new_id}"
+    target_dir="${target_snap}${target_dir#$target_mountpoint}"
+    ;;
+  netapp)
+    # we rely on netapp's automatic snapshots here.  i'm not
+    # sure what will happen if rsync is running when all the
+    # snapshots get rotated.  you might want to avoid that
+    # by forcing the use of nightly snapshots by setting
+    # last_snap to $snap_dir/nightly.0.
+    #
+    # we also change the id to the time of the most recent snapshot
+    zmodload zsh/stat
+    snap_dir="${target_dir}/.snapshot"
+    last_snap="$(ls -dru "${snap_dir}"/* | tail -1)"
+    new_id="$(stat +atime -F"$date_fmt" "$last_snap")"
+    target_dir="$last_snap"
+    ;;
+  bsd-ufs)
+    # something like:
+    # mount -u -o snapshot $target_mountpoint/.snap/$new_id $target_mountpoint
+    # mdconfig stuff
+    # target_dir=${snap_mountpoint}${target_dir#$target_mountpoint}
+    ;;
+  sun-ufs)
+    # something like:
+    # fssnap -F ufs $target_mountpoint /dev/fssnap/$n 
+    # mount /dev/fssnap/$n $snap_mountpoint
+    # target_dir=${snap_mountpoint}${target_dir#$target_mountpoint}
+    ;;
+  *)
+    # no snapshot.  we're sad.  you should switch to
+    # single-user if possible.
+    ;;
+esac
+
+# Step 2: Send the snapshot to strongspace
+rsync_cmd="rsync \
+  ${rsync_preserve_flags} \
+  ${rsync_file_flags} \
+  ${rsync_skip_flags} \
+  ${rsync_log_flags} \
+  --link-dest=../${last_id} \
+  ${target_dir}/ \
+  ${strongspace_host}:${strongspace_dir}/${new_id}"
+print "${rsync_cmd}" |& tee "${log_file}.new"
+
+${=rsync_cmd} |& tee -a "${log_file}.new"
+
+exit_val=$?
+if [[ "$exit_val" -ne "0" ]]; then
+  print "ERROR: ${exit_val}" |& tee -a "${log_file}.new"
+  exit $exit_val
+fi
+
+print "\nSS-RSYNC-ID: ${new_id}" >>"${log_file}.new"
+mv "${log_file}.new" "$log_file"
